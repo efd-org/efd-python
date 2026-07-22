@@ -1,0 +1,5 @@
+[project]
+name = "efd-hello-world-python"
+version = "0.1.0"
+description = "Minimal Python hello world project"
+requires-python = ">=3.10"
