@@ -1,0 +1,52 @@
+name: Build efd-python
+on:
+  push:
+    branches:
+      - main
+      - master
+      - dev
+  pull_request:
+    branches:
+      - main
+      - master
+      - dev
+  workflow_dispatch:
+env:
+  ARTIFACT_ID: efd-python
+  VERSION: 1.0.0
+  GROUP_ID: com.example
+jobs:
+  build:
+    name: Python Build
+    if: "vars.ACTIVE_CLOUD == 'aws'"
+    "runs-on": self-hosted-23b1766e
+    env:
+      AWS_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push Docker image
+        env:
+          ECR_REGISTRY: "${{ steps.login-ecr.outputs.registry }}"
+          ECR_REPOSITORY: efd-python
+        run: |
+          SHORT_SHA=${GITHUB_SHA::8}
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -t $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_SHA -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.run_number }} .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$SHORT_SHA
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.run_number }}
+  deploy:
+    name: Deploy to ECS
+    if: "vars.ACTIVE_CLOUD == 'aws'"
+    needs: build
+    "runs-on": self-hosted-23b1766e
+    env:
+      AWS_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Force new deployment on ECS service
+        run: aws ecs update-service --cluster "efd-python-cluster" --service "efd-python-service" --force-new-deployment --region us-east-1
